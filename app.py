@@ -1,5 +1,10 @@
 import io
 import json
+import random
+import string
+import time
+import uuid
+
 import pandas as pd
 import streamlit as st
 from datetime import date, datetime, timezone
@@ -51,6 +56,105 @@ def get_selected_id(data):
     """
     document_id = st.columns(4)[0].selectbox(label='Id', options=data['dataset_id'].unique(), key='document_id')
     return data[data['dataset_id'] == document_id].iloc[0], document_id
+
+
+def add_new_entry(data):
+    """
+    Add a new entry with blank fields and a random ID.
+    """
+    new_id = str(uuid.uuid4())
+    blank_entry = {
+        "dataset_id": new_id,
+        "category": "commodity",
+        "name": '',
+        "allocations": [{
+            'name':None,
+            'percentage':0.0
+        }],
+        "links": ["https://finance.yahoo.com"],
+        "symbol": '',
+        "source": 'yf',
+        "start_date": datetime.now(timezone.utc).isoformat(),
+        "time_intervals": ['1d', '1h'],
+        "timezone": 'America/New_York',
+        "data_column_name": 'close',
+        "api": 'yf',
+        "api_id": '',
+        "quote": 'USD',
+        "market_code": 'NYMEX',
+        "indicators": [
+            {
+                "name": "SMA",
+                "params": [
+                    "1"
+                ],
+                "time_intervals": [
+                    "1d"
+                ],
+                "alerts": [
+                    {
+                        "condition": "Crossing",
+                        "trigger": "Once Per Bar Close",
+                        "expiration": "Open-ended alert"
+                    }
+                ]
+            },
+            {
+                "name": "MACD",
+                "params": [
+                    "1"
+                ],
+                "time_intervals": [
+                    "1d"
+                ],
+                "alerts": [
+                    {
+                        "condition": "Crossing",
+                        "trigger": "Once Per Bar Close",
+                        "expiration": "Open-ended alert"
+                    }
+                ]
+            },
+            {
+                "name": "ATR",
+                "params": [
+                    "1"
+                ],
+                "time_intervals": [
+                    "1d"
+                ],
+                "alerts": [
+                    {
+                        "condition": "Crossing",
+                        "trigger": "Once Per Bar Close",
+                        "expiration": "Open-ended alert"
+                    }
+                ]
+            },
+            {
+                "name": "SuperTrend",
+                "params": [
+                    "1"
+                ],
+                "time_intervals": [
+                    "1d"
+                ],
+                "alerts": [
+                    {
+                        "condition": "Crossing",
+                        "trigger": "Once Per Bar Close",
+                        "expiration": "Open-ended alert"
+                    }
+                ]
+            }
+        ]
+    }
+    new_record = pd.DataFrame([blank_entry])
+    new_record['start_date'] = pd.to_datetime(new_record['start_date'])
+    data = pd.concat([new_record, data], ignore_index=True)
+    st.session_state['data'] = data
+    st.success('New entry added successfully with default values!')
+    return data
 
 
 def update_json_entry(data, document_id):
@@ -142,12 +246,14 @@ def render_form(df_row):
         # Initials section
         with st.expander(label="Initials", expanded=True):
             row_1 = st.columns((2, 2, 1, 1, 3))
-            category_options = ['commodity', 'equity', 'bond', 'forex', 'cryptocurrency', 'real estate', 'ETF', 'index', 'metal']
-            category_options.extend([df_row['category']])
+            category_options = ["commodity", "forex", "security", "crypto"]
+            category_options = list(set(category_options))
             source_options = ['yf', 'alpha_vantage', 'polygon', 'bloomberg', 'morningstar', 'iex', 'coinmarketcap', 'finnhub']
             source_options.extend([df_row['source']])
+            source_options = list(set(source_options))
             link_options = ['https://finance.yahoo.com', 'https://www.bloomberg.com', 'https://www.cnbc.com', 'https://www.marketwatch.com']
             link_options.extend(df_row['links'])
+            link_options = list(set(link_options))
             row_1[0].text_input(label="Name", value=df_row['name'], key='name')
             row_1[1].selectbox(label="Category", options=category_options, index=category_options.index(df_row['category']), key='category')
             row_1[2].text_input(label="Symbol", value=df_row['symbol'], key='symbol')
@@ -170,20 +276,29 @@ def render_form(df_row):
             row_1[0].date_input(label="Start Date", value=df_row['start_date'], key='start_date')
             time_interval_list = ['1h', '1d', '1w', '1mo', '3mo', '6mo', '1y']
             time_interval_list.extend(df_row['time_intervals'])
+            time_interval_list = list(set(time_interval_list))
             row_1[1].multiselect(label="Time Interval", options=time_interval_list, default=df_row['time_intervals'], key='time_intervals')
-            row_1[2].text_input(label="Time Zone", value=df_row['timezone'], key='time_zone')
+
+            timezone_options=["America/New_York", "UTC", "Europe/London"]
+            timezone_options.extend([df_row['timezone']])
+            timezone_options = list(set(timezone_options))
+            row_1[2].selectbox(label="Time Zone", options=timezone_options, index=timezone_options.index(df_row['timezone']), key='time_zone')
 
         # Data Info
         with st.expander(label="Data Info", expanded=True):
             row_1 = st.columns(5)
             column_name_options = ['open', 'close', 'high', 'low']
             column_name_options.extend([df_row['data_column_name']])
+            column_name_options = list(set(column_name_options))
             api_options = ['yf', 'alpha_vantage', 'polygon']
             api_options.extend([df_row['api']])
-            quote_options = ['USD', 'EUR', 'GBP']
+            api_options = list(set(api_options))
+            quote_options = ['USD', 'EUR', 'GBP', "GBX"]
             quote_options.extend([df_row['quote']])
-            market_code_options = ['NYMEX', 'NASDAQ', 'NYSE', 'COMEX']
+            quote_options = list(set(quote_options))
+            market_code_options = ['NYMEX', 'NASDAQ', 'NYSE', 'COMEX', "kraken","LSE"]
             market_code_options.extend([df_row['market_code']])
+            market_code_options = list(set(market_code_options))
             row_1[0].selectbox(label="Column", options=column_name_options, index=column_name_options.index(df_row['data_column_name']), key='data_column_name')
             row_1[1].selectbox(label="API", options=api_options, index=api_options.index(df_row['api']), key='api')
             row_1[2].text_input(label="API ID", value=df_row['api_id'], key='api_id')
@@ -195,16 +310,20 @@ def render_form(df_row):
         st.write("##### Indicators")
         render_indicators(df_row)
 
+        st.write("---")
+        btn_row = st.columns(6)
         # Submit button
-        submit_button = st.form_submit_button(label='Update Entry')
-
-        return submit_button
+        submit_button = btn_row[0].form_submit_button(label='Update Entry')
+        drop_button = btn_row[2].form_submit_button(label="Drop Entry")
+        add_button = btn_row[4].form_submit_button(label="Add New Entry")
+        return submit_button, drop_button, add_button
 
 
 def render_indicators(df_row):
     """
     Function to render the indicators section
     """
+    names_list = ["SMA", "MACD", "ATR", "SuperTrend"]
     params_list = [f'{i}' for i in range(0, 300)]
     time_interval_list = ['1d', '1w', '1mo']
     alert_conditions = ['Crossing', 'Trend Change', None]
@@ -212,11 +331,13 @@ def render_indicators(df_row):
     alert_expiration = ["Open-ended alert", None]
 
     for i, ind in enumerate(df_row['indicators']):
+        names_list.extend([ind['name']])
         time_interval_list.extend(ind['time_intervals'])
+        time_interval_list = list(set(time_interval_list))
 
         ind_name = ind['name']
         row_1 = st.columns((1, 2, 2, 3))
-        row_1[0].text_input(label="Name", value=ind['name'], key=f"indicator_name_{i}")
+        row_1[0].selectbox(label="Name", options=names_list, index=names_list.index(ind['name']), key=f"indicator_name_{i}")
         row_1[1].multiselect(label="Params", options=params_list, default=ind['params'], key=f"indicator_params_{i}")
         row_1[2].multiselect(label="Time Intervals", options=time_interval_list, default=ind['time_intervals'], key=f"indicator_intervals_{i}")
 
@@ -235,6 +356,9 @@ def render_indicators(df_row):
                     alert_conditions.extend([alert['condition']])
                     alert_triggers.extend([alert['trigger']])
                     alert_expiration.extend([alert['expiration']])
+                    alert_conditions =list(set(alert_conditions))
+                    alert_triggers =list(set(alert_triggers))
+                    alert_expiration =list(set(alert_expiration))
                     al_row_1 = st.columns(3)
                     al_row_1[0].selectbox(label="Condition", options=alert_conditions, index=alert_conditions.index(alert['condition']), key=f"{ind_name}_alert_condition_{x}")
                     al_row_1[1].selectbox(label="Trigger", options=alert_triggers, index=alert_triggers.index(alert['trigger']), key=f"{ind_name}_alert_trigger_{x}")
@@ -243,23 +367,6 @@ def render_indicators(df_row):
 
 
 # ----------------------------------- Data Saving & Manipulations -------------------------------
-
-# def save_json(file_name, data):
-#     if data is not None:
-#         updated_json_str = data.to_json(orient="records")
-#         updated_json = json.loads(updated_json_str)
-#
-#         for entry in updated_json:
-#             if 'indicators' in entry:
-#                 entry['indicators'] = clean_alerts(entry['indicators'])
-#
-#         new_file_name = f"{file_name.split('.')[0]}_updated.json"
-#         with open(new_file_name, 'w') as new_json_file:
-#             json.dump(updated_json, new_json_file, indent=4)
-#         st.success(f"All entries saved to {new_file_name}")
-#     else:
-#         st.warning("Data is empty.")
-
 
 def save_json(file_name, data):
     if data is not None:
@@ -332,13 +439,30 @@ def main():
         data = st.session_state['data']
 
     if data is not None:
-        df_row, document_id = get_selected_id(data)
+        try:
+            df_row, document_id = get_selected_id(data)
+            submit, drop, add = render_form(df_row)
 
-        if render_form(df_row):
-            data = update_json_entry(data, document_id)
+            if submit:
+                data = update_json_entry(data, document_id)
+            if drop:
+                data = data[data['dataset_id'] != document_id]
+                st.session_state['data'] = data
+                st.success('Entry dropped successfully!')
+                time.sleep(2)
+                st.rerun()
+            if add:
+                data = add_new_entry(data)
+                time.sleep(1)
+                st.rerun()
 
-        # if st.button("Save JSON 💾"):
-        save_json(file_name=json_file_name, data=st.session_state['data'])
+            # if st.button("Save JSON 💾"):
+            save_json(file_name=json_file_name, data=st.session_state['data'])
+        except IndexError as e:
+            st.error("No data to display.")
+        except Exception as e:
+            st.error("Unexpected error occurs, check Logs.")
+
     else:
         st.warning("Upload Data to continue.")
 
