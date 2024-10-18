@@ -19,6 +19,13 @@ st.markdown("""
         border-radius: 8px;
         margin: auto;
     }
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden; height:0;}
+    .block-container {
+      margin-top: 25px;
+      padding-top: 0;
+    }
 </style>
 """, unsafe_allow_html=True)
 
