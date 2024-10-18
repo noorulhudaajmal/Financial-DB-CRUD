@@ -323,7 +323,7 @@ def main():
     """
     Main app logic
     """
-    st.title("JSON Updater")
+    st.title("JSON Editor")
     data, json_file_name = load_json_data()
     initialize_session_state(data)
 
