@@ -431,6 +431,10 @@ def save_json(file_name, data):
             if 'indicators' in entry:
                 entry['indicators'] = clean_alerts(entry['indicators'])
 
+            for var in ["isin", "cusip", "sedol"]:
+                if not is_valid_string(entry[var]):
+                    del entry[var]
+
         # Convert cleaned data to JSON string
         cleaned_json_str = json.dumps(updated_json, indent=4)
 
