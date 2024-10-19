@@ -511,8 +511,8 @@ def main():
             save_json(file_name=json_file_name, data=st.session_state['data'])
         except IndexError as e:
             st.error("No data to display.")
-        # except Exception as e:
-        #     st.error("Unexpected error occurs, check Logs.")
+        except Exception as e:
+            st.error("Unexpected error occurs, check Logs.")
 
     else:
         st.warning("Upload Data to continue.")
