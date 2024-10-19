@@ -9,6 +9,8 @@ import pandas as pd
 import streamlit as st
 from datetime import date, datetime, timezone
 
+from pandas._libs.tslibs.parsing import DateParseError
+
 pd.options.mode.chained_assignment = None
 
 # -------------------------Page Config----------------------------------------
@@ -50,11 +52,17 @@ def load_json_data():
         return None, None
 
 
+def is_valid_string(value):
+    return isinstance(value, str) and bool(value.strip())
+
+
 def get_selected_id(data):
     """
     get the dataset row based on the selected ID.
     """
     document_id = st.columns(4)[0].selectbox(label='Id', options=data['dataset_id'].unique(), key='document_id')
+    if 'allocations' in st.session_state:
+        del st.session_state['allocations']
     return data[data['dataset_id'] == document_id].iloc[0], document_id
 
 
@@ -63,6 +71,10 @@ def add_new_entry(data):
     Add a new entry with blank fields and a random ID.
     """
     new_id = str(uuid.uuid4())
+
+    default_date = datetime.strptime("2020/01/01", "%Y/%m/%d")
+    default_date_utc = default_date.replace(tzinfo=timezone.utc)
+
     blank_entry = {
         "dataset_id": new_id,
         "category": "commodity",
@@ -74,7 +86,10 @@ def add_new_entry(data):
         "links": ["https://finance.yahoo.com"],
         "symbol": '',
         "source": 'yf',
-        "start_date": datetime.now(timezone.utc).isoformat(),
+        "isin":'',
+        "cusip":'',
+        "sedol":'',
+        "start_date": default_date_utc.isoformat(),
         "time_intervals": ['1d', '1h'],
         "timezone": 'America/New_York',
         "data_column_name": 'close',
@@ -83,70 +98,6 @@ def add_new_entry(data):
         "quote": 'USD',
         "market_code": 'NYMEX',
         "indicators": [
-            {
-                "name": "SMA",
-                "params": [
-                    "1"
-                ],
-                "time_intervals": [
-                    "1d"
-                ],
-                "alerts": [
-                    {
-                        "condition": "Crossing",
-                        "trigger": "Once Per Bar Close",
-                        "expiration": "Open-ended alert"
-                    }
-                ]
-            },
-            {
-                "name": "MACD",
-                "params": [
-                    "1"
-                ],
-                "time_intervals": [
-                    "1d"
-                ],
-                "alerts": [
-                    {
-                        "condition": "Crossing",
-                        "trigger": "Once Per Bar Close",
-                        "expiration": "Open-ended alert"
-                    }
-                ]
-            },
-            {
-                "name": "ATR",
-                "params": [
-                    "1"
-                ],
-                "time_intervals": [
-                    "1d"
-                ],
-                "alerts": [
-                    {
-                        "condition": "Crossing",
-                        "trigger": "Once Per Bar Close",
-                        "expiration": "Open-ended alert"
-                    }
-                ]
-            },
-            {
-                "name": "SuperTrend",
-                "params": [
-                    "1"
-                ],
-                "time_intervals": [
-                    "1d"
-                ],
-                "alerts": [
-                    {
-                        "condition": "Crossing",
-                        "trigger": "Once Per Bar Close",
-                        "expiration": "Open-ended alert"
-                    }
-                ]
-            }
         ]
     }
     new_record = pd.DataFrame([blank_entry])
@@ -172,15 +123,19 @@ def update_json_entry(data, document_id):
             return value.isoformat()
         return value
 
+    input_links = st.session_state.get('links', '')
     # structured JSON object based on session state
     updated_entry = {
         "dataset_id": document_id,
         "category": st.session_state.get('category', ''),
         "name": st.session_state.get('name', ''),
         "allocations":[],
-        "links": st.session_state.get('links', []),
+        "links":[link.strip() for link in input_links.split(',')] if input_links else [],
         "symbol": st.session_state.get('symbol', ''),
         "source": st.session_state.get('source', ''),
+        "isin":st.session_state.get('isin', ''),
+        "cusip":st.session_state.get('cusip', ''),
+        "sedol":st.session_state.get('sedol', ''),
         "start_date": serialize_value(st.session_state.get('start_date', '')),
         "time_intervals": st.session_state.get('time_intervals', []),
         "timezone": st.session_state.get('time_zone', ''),
@@ -192,8 +147,12 @@ def update_json_entry(data, document_id):
         "indicators": []
     }
 
+    for var in ["isin", "cusip", "sedol"]:
+        if not is_valid_string(updated_entry[var]):
+            del updated_entry[var]
+
     # Update allocations using session state
-    for i in range(len(data.iloc[row_index]['allocations'])):
+    for i in range(len(st.session_state[f'{document_id}_allocations'])):
         allocation = {
             "name": st.session_state.get(f"allocation_{i}_name", ''),
             "percentage": st.session_state.get(f"allocation_{i}_percentage", 0.0),
@@ -201,37 +160,61 @@ def update_json_entry(data, document_id):
         if allocation['name'] and allocation['percentage']:
             updated_entry['allocations'].append(allocation)
 
+
     # Update indicators and alerts based on session state
-    for i in range(len(data.iloc[row_index]['indicators'])):
+    for i in range(st.session_state['ind_count']):
         indicator = {
             "name": st.session_state.get(f"indicator_name_{i}", ''),
             "params": st.session_state.get(f"indicator_params_{i}", []),
             "time_intervals": st.session_state.get(f"indicator_intervals_{i}", [])
         }
 
+        if not is_valid_string(indicator['name']):
+            continue
+
         # Adding alerts if they exist for the indicator
-        alerts = data.iloc[row_index]['indicators'][i].get('alerts', [])
+        # alerts = data.iloc[row_index]['indicators'][i].get('alerts', [])
+
+
+        alerts = st.session_state[f"alerts_{i}"]
         if alerts:
             indicator_alerts = []
             for j, _ in enumerate(alerts):
-                alert = {
-                    "condition": st.session_state.get(f"{data.iloc[row_index]['indicators'][i]['name']}_alert_condition_{j}", ''),
-                    "trigger": st.session_state.get(f"{data.iloc[row_index]['indicators'][i]['name']}_alert_trigger_{j}", ''),
-                    "expiration": st.session_state.get(f"{data.iloc[row_index]['indicators'][i]['name']}_alert_expiration_{j}", '')
-                }
-                if all(value for value in alert.values()):
+                status = st.session_state.get(f"{document_id}_{i}_open_ended_{j}", False)
+                if status:
+                    alert = {
+                        "condition": st.session_state.get(f"{i}_alert_condition_{j}", ''),
+                        "trigger": st.session_state.get(f"{i}_alert_trigger_{j}", ''),
+                        "expiration": st.session_state.get(f"{i}_alert_expiration_{j}", ''),
+                        "open_ended": "True"
+                    }
+                else:
+                    expiration_date = st.session_state.get(f"{i}_alert_expiration_{j}", '')
+                    if not expiration_date:
+                        expiration_date = datetime.today()
+                    expiration_iso_format = expiration_date.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+                    alert = {
+                        "condition": st.session_state.get(f"{i}_alert_condition_{j}", ''),
+                        "trigger": st.session_state.get(f"{i}_alert_trigger_{j}", ''),
+                        "expiration": expiration_iso_format,
+                    }
+                if all(str(value) and str(value).strip() for value in alert.values()):
                     indicator_alerts.append(alert)
                 else:
                     indicator_alerts = []
             if len(indicator_alerts)!=0:
                 indicator['alerts'] = indicator_alerts
             updated_entry["indicators"].append(indicator)
+        st.session_state[f"alerts_{i}"] = None
+        del st.session_state[f"alerts_{i}"]
 
     # Update the dataframe
     data.loc[row_index] = updated_entry
 
     # Save the updated data in session state to persist changes
     st.session_state['data'] = data.copy()
+    del st.session_state['ind_count']
+    del st.session_state[f'{document_id}_allocations']
     st.success('JSON data updated successfully!')
 
     return st.session_state['data']  # Return the updated dataframe
@@ -242,128 +225,195 @@ def render_form(df_row):
     """
     render the form with all widgets.
     """
-    with st.form(key='lead_form', clear_on_submit=False):
-        # Initials section
-        with st.expander(label="Initials", expanded=True):
-            row_1 = st.columns((2, 2, 1, 1, 3))
-            category_options = ["commodity", "forex", "security", "crypto"]
-            category_options = list(set(category_options))
-            source_options = ['yf', 'alpha_vantage', 'polygon', 'bloomberg', 'morningstar', 'iex', 'coinmarketcap', 'finnhub']
-            source_options.extend([df_row['source']])
-            source_options = list(set(source_options))
-            link_options = ['https://finance.yahoo.com', 'https://www.bloomberg.com', 'https://www.cnbc.com', 'https://www.marketwatch.com']
-            link_options.extend(df_row['links'])
-            link_options = list(set(link_options))
-            row_1[0].text_input(label="Name", value=df_row['name'], key='name')
-            row_1[1].selectbox(label="Category", options=category_options, index=category_options.index(df_row['category']), key='category')
-            row_1[2].text_input(label="Symbol", value=df_row['symbol'], key='symbol')
-            row_1[3].selectbox(label="Source", options=source_options, index=source_options.index(df_row['source']), key='source')
-            row_1[4].multiselect(label="Link(s)", options=link_options, default=df_row['links'], key='links')
+    # with st.form(key='lead_form', clear_on_submit=False):
+    # Initials section
 
-            st.write("##### Allocations")
-            row_2 = st.columns((2,2,3))
-            allocations = df_row['allocations']
-            if pd.isnull(allocations):
-                allocations = [{'name':None, 'percentage': 0.0}]
-            ind = 0
-            for alloc in allocations:
-                row_2[0].text_input(label="Name", value=alloc['name'], key=f"allocation_{ind}_name")
-                row_2[1].number_input(label="Percentage", value=alloc['percentage'], min_value=0.0, max_value=100.0, key=f"allocation_{ind}_percentage")
-                ind +=1
-        # Date & Time Information
-        with st.expander(label="Date & Time Information", expanded=True):
-            row_1 = st.columns((2, 3, 2))
-            row_1[0].date_input(label="Start Date", value=df_row['start_date'], key='start_date')
-            time_interval_list = ['1h', '1d', '1w', '1mo', '3mo', '6mo', '1y']
-            time_interval_list.extend(df_row['time_intervals'])
-            time_interval_list = list(set(time_interval_list))
-            row_1[1].multiselect(label="Time Interval", options=time_interval_list, default=df_row['time_intervals'], key='time_intervals')
+    with st.expander(label="Initials", expanded=True):
+        row_1 = st.columns((2, 2, 1, 1, 3))
+        category_options = ["commodity", "forex", "security", "crypto"]
+        category_options = list(set(category_options))
+        source_options = ['yf', 'alpha_vantage', 'polygon', 'bloomberg', 'morningstar', 'iex', 'coinmarketcap', 'finnhub']
+        source_options.extend([df_row['source']])
+        source_options = list(set(source_options))
+        # link_options = ['https://finance.yahoo.com', 'https://www.bloomberg.com', 'https://www.cnbc.com', 'https://www.marketwatch.com']
+        # link_options.extend(df_row['links'])
+        # link_options = list(set(link_options))
+        links_str = ', '.join(df_row['links'])
+        row_1[0].text_input(label="Name", value=df_row['name'], key='name')
+        row_1[1].selectbox(label="Category", options=category_options, index=category_options.index(df_row['category']), key='category')
+        row_1[2].text_input(label="Symbol", value=df_row['symbol'], key='symbol')
+        row_1[3].selectbox(label="Source", options=source_options, index=source_options.index(df_row['source']), key='source')
+        row_1[4].text_input(label="Link(s)", value=links_str, key='links')
 
-            timezone_options=["America/New_York", "UTC", "Europe/London"]
-            timezone_options.extend([df_row['timezone']])
-            timezone_options = list(set(timezone_options))
-            row_1[2].selectbox(label="Time Zone", options=timezone_options, index=timezone_options.index(df_row['timezone']), key='time_zone')
+        if f'{df_row["dataset_id"]}_allocations' not in st.session_state:
+            st.session_state[f'{df_row["dataset_id"]}_allocations'] = df_row['allocations']  # Initialize allocations if not present
 
-        # Data Info
-        with st.expander(label="Data Info", expanded=True):
-            row_1 = st.columns(5)
-            column_name_options = ['open', 'close', 'high', 'low']
-            column_name_options.extend([df_row['data_column_name']])
-            column_name_options = list(set(column_name_options))
-            api_options = ['yf', 'alpha_vantage', 'polygon']
-            api_options.extend([df_row['api']])
-            api_options = list(set(api_options))
-            quote_options = ['USD', 'EUR', 'GBP', "GBX"]
-            quote_options.extend([df_row['quote']])
-            quote_options = list(set(quote_options))
-            market_code_options = ['NYMEX', 'NASDAQ', 'NYSE', 'COMEX', "kraken","LSE"]
-            market_code_options.extend([df_row['market_code']])
-            market_code_options = list(set(market_code_options))
-            row_1[0].selectbox(label="Column", options=column_name_options, index=column_name_options.index(df_row['data_column_name']), key='data_column_name')
-            row_1[1].selectbox(label="API", options=api_options, index=api_options.index(df_row['api']), key='api')
-            row_1[2].text_input(label="API ID", value=df_row['api_id'], key='api_id')
-            row_1[3].selectbox(label="Quote", options=quote_options, index=quote_options.index(df_row['quote']), key='quote')
-            row_1[4].selectbox(label="Market Code", options=market_code_options, index=market_code_options.index(df_row['market_code']), key='market_code')
+        st.write("##### ")
+        st.write("##### Allocations")
+        add_allocation = st.columns(6)[0].button("Add Allocation")
+        if add_allocation:
+            new_allocation = {
+                "name": 'None',  # Default name
+                "percentage": 0.0  # Default percentage
+            }
+            st.session_state[f'{df_row["dataset_id"]}_allocations'].append(new_allocation)
 
-        # Indicators
-        st.write("---")
-        st.write("##### Indicators")
-        render_indicators(df_row)
+        allocations = st.session_state[f'{df_row["dataset_id"]}_allocations']
+        row_2 = st.columns((2, 2, 3))
+        for ind, alloc in enumerate(allocations):
+            # Create UI components for the allocation
+            row_2[0].text_input(label="Name", value=alloc['name'], key=f"allocation_{ind}_name")
+            row_2[1].number_input(label="Percentage", value=alloc['percentage'], min_value=0.0, max_value=100.0, key=f"allocation_{ind}_percentage")
 
-        st.write("---")
-        btn_row = st.columns(6)
-        # Submit button
-        submit_button = btn_row[0].form_submit_button(label='Update Entry')
-        drop_button = btn_row[2].form_submit_button(label="Drop Entry")
-        add_button = btn_row[4].form_submit_button(label="Add New Entry")
-        return submit_button, drop_button, add_button
+
+    # Date & Time Information
+    with st.expander(label="Date & Time Information", expanded=True):
+        row_1 = st.columns((2, 3, 2))
+        row_1[0].date_input(label="Start Date", value=df_row['start_date'], key='start_date')
+        time_interval_list = ['1h', '1d', '1w', '1mo', '3mo', '6mo', '1y']
+        time_interval_list.extend(df_row['time_intervals'])
+        time_interval_list = list(set(time_interval_list))
+        row_1[1].multiselect(label="Time Interval", options=time_interval_list, default=df_row['time_intervals'], key='time_intervals')
+
+        timezone_options=["America/New_York", "UTC", "Europe/London"]
+        timezone_options.extend([df_row['timezone']])
+        timezone_options = list(set(timezone_options))
+        row_1[2].selectbox(label="Time Zone", options=timezone_options, index=timezone_options.index(df_row['timezone']), key='time_zone')
+
+    # Data Info
+    with st.expander(label="Data Info", expanded=True):
+        row_1 = st.columns(8)
+        column_name_options = ['open', 'close', 'high', 'low']
+        column_name_options.extend([df_row['data_column_name']])
+        column_name_options = list(set(column_name_options))
+        api_options = ['yf', 'alpha_vantage', 'polygon']
+        api_options.extend([df_row['api']])
+        api_options = list(set(api_options))
+        quote_options = ['USD', 'EUR', 'GBP', "GBX"]
+        quote_options.extend([df_row['quote']])
+        quote_options = list(set(quote_options))
+        market_code_options = ['NYMEX', 'NASDAQ', 'NYSE', 'COMEX', "kraken","LSE"]
+        market_code_options.extend([df_row['market_code']])
+        market_code_options = list(set(market_code_options))
+
+        cusip =  df_row.get('cusip', None)
+        sedol =  df_row.get('sedol', None)
+        isin =  df_row.get('isin', None)
+
+        cusip = '' if pd.isna(cusip) else cusip
+        sedol = '' if pd.isna(sedol) else sedol
+        isin = '' if pd.isna(isin) else isin
+
+        row_1[0].selectbox(label="Column", options=column_name_options, index=column_name_options.index(df_row['data_column_name']), key='data_column_name')
+        row_1[1].selectbox(label="API", options=api_options, index=api_options.index(df_row['api']), key='api')
+        row_1[2].text_input(label="API ID", value=df_row['api_id'], key='api_id')
+        row_1[3].selectbox(label="Quote", options=quote_options, index=quote_options.index(df_row['quote']), key='quote')
+        row_1[4].selectbox(label="Market Code", options=market_code_options, index=market_code_options.index(df_row['market_code']), key='market_code')
+        row_1[5].text_input(label="isin", value=isin, key='isin')
+        row_1[6].text_input(label="sedol", value=sedol, key='sedol')
+        row_1[7].text_input(label="cusip", value=cusip, key='cusip')
+
+    # Indicators
+    st.write("---")
+    st.write("##### Indicators")
+    render_indicators(df_row)
+
+    st.write("---")
+    btn_row = st.columns(6)
+    # Submit button
+    # submit_button = btn_row[0].form_submit_button(label='Update Entry')
+    # drop_button = btn_row[2].form_submit_button(label="Drop Entry")
+    # add_button = btn_row[4].form_submit_button(label="Add New Entry")
+    submit_button = btn_row[0].button(label='Update Entry')
+    drop_button = btn_row[2].button(label="Drop Entry")
+    add_button = btn_row[4].button(label="Add New Entry")
+    return submit_button, drop_button, add_button
 
 
 def render_indicators(df_row):
     """
     Function to render the indicators section
     """
-    names_list = ["SMA", "MACD", "ATR", "SuperTrend"]
+
+    doc_id = df_row['dataset_id']
+    # names_list = ["SMA", "MACD", "ATR", "SuperTrend"]
     params_list = [f'{i}' for i in range(0, 300)]
     time_interval_list = ['1d', '1w', '1mo']
-    alert_conditions = ['Crossing', 'Trend Change', None]
-    alert_triggers = ["Once Per Bar Close", None]
-    alert_expiration = ["Open-ended alert", None]
 
+    add_indicator = st.columns(7)[6].button("Add Indicator")
+    if add_indicator:
+        new_indicator = {
+            "name": " ",
+            "params": ["1"],  # Default parameter
+            "time_intervals": ["1d"],  # Default time interval
+            "alerts": []  # Empty alerts list
+        }
+        df_row['indicators'].append(new_indicator)
+
+    indicator_count = 0
     for i, ind in enumerate(df_row['indicators']):
-        names_list.extend([ind['name']])
-        time_interval_list.extend(ind['time_intervals'])
+        time_intervals = ind.get('time_intervals', ind.get('time_interval', []))
+        time_interval_list.extend(time_intervals)
         time_interval_list = list(set(time_interval_list))
 
-        ind_name = ind['name']
+        # ind_name = ind['name']
         row_1 = st.columns((1, 2, 2, 3))
-        row_1[0].selectbox(label="Name", options=names_list, index=names_list.index(ind['name']), key=f"indicator_name_{i}")
+        row_1[0].text_input(label="Name", value=ind['name'], key=f"indicator_name_{i}")
         row_1[1].multiselect(label="Params", options=params_list, default=ind['params'], key=f"indicator_params_{i}")
-        row_1[2].multiselect(label="Time Intervals", options=time_interval_list, default=ind['time_intervals'], key=f"indicator_intervals_{i}")
+        row_1[2].multiselect(label="Time Intervals", options=time_interval_list, default=time_intervals, key=f"indicator_intervals_{i}")
 
         alerts = ind.get('alerts', None)
+        # If no alerts are present in 'ind', initialize it with default values
         if not alerts:
             ind['alerts'] = [{
                 'condition': None,
                 'trigger': None,
                 'expiration': None
             }]
-            alerts = ind.get('alerts', None)
+            alerts = ind['alerts']
+
+        # Check if session state for alerts is initialized
+        if f'alerts_{i}' not in st.session_state:
+            # Populate session state with existing alerts from 'ind'
+            st.session_state[f'alerts_{i}'] = alerts
+
         with row_1[3].expander(label="Alerts"):
-            if alerts:
-                x = 0
-                for alert in alerts:
-                    alert_conditions.extend([alert['condition']])
-                    alert_triggers.extend([alert['trigger']])
-                    alert_expiration.extend([alert['expiration']])
-                    alert_conditions =list(set(alert_conditions))
-                    alert_triggers =list(set(alert_triggers))
-                    alert_expiration =list(set(alert_expiration))
-                    al_row_1 = st.columns(3)
-                    al_row_1[0].selectbox(label="Condition", options=alert_conditions, index=alert_conditions.index(alert['condition']), key=f"{ind_name}_alert_condition_{x}")
-                    al_row_1[1].selectbox(label="Trigger", options=alert_triggers, index=alert_triggers.index(alert['trigger']), key=f"{ind_name}_alert_trigger_{x}")
-                    al_row_1[2].selectbox(label="Expiration", options=alert_expiration, index=alert_expiration.index(alert['expiration']), key=f"{ind_name}_alert_expiration_{x}")
-                    x += 1
+            # Button to add a new alert row
+            add_alert = st.button(label="Add Alert", key=f"add_{i}_alert")
+
+            # If the button is clicked, add an empty alert to the session state
+            if add_alert:
+                st.session_state[f'alerts_{i}'].append({'condition': 'None', 'trigger': 'None', 'expiration': 'None'})
+
+            # Display all alerts stored in session state
+            x = 0
+            for alert in st.session_state[f'alerts_{i}']:
+                if all(str(value) and str(value).strip() for value in alert.values()):
+                    al_row_1 = st.columns((3,3,3,2))
+                    al_row_1[3].checkbox(label="Open Ended", value=alert.get('open_ended', False), key=f"{doc_id}_{i}_open_ended_{x}")
+                    open_ended = st.session_state[f"{doc_id}_{i}_open_ended_{x}"]
+                    al_row_1[0].text_input(label="Condition", value=alert['condition'] if alert['condition'] else "", key=f"{i}_alert_condition_{x}")
+                    al_row_1[1].text_input(label="Trigger", value=alert['trigger'] if alert['trigger'] else "", key=f"{i}_alert_trigger_{x}")
+                    if open_ended:
+                        al_row_1[2].text_input(label="Expiration", value=alert['expiration'] if alert['expiration'] else "", key=f"{i}_alert_expiration_{x}")
+                    else:
+                        try:
+                            alert_exp = pd.to_datetime(alert.get('expiration', pd.to_datetime(datetime.today())))
+                        except Exception as e:
+                            alert_exp = pd.to_datetime(datetime.today())
+                        if isinstance(alert_exp, pd.Timestamp):
+                            alert_exp = alert_exp.date()
+
+                        al_row_1[2].date_input(label="Expiration", value=alert_exp, key=f"{i}_alert_expiration_{x}")
+
+                x += 1
+            st.session_state[f"ind_{i}_alert_count"] = x
+
+        indicator_count += 1
+    st.session_state[f"ind_count"] = indicator_count
+            # Output for debugging
+            # st.write("Session Alerts:", st.session_state[f'alerts_{i}'])
+
 
 
 # ----------------------------------- Data Saving & Manipulations -------------------------------
@@ -445,6 +495,7 @@ def main():
 
             if submit:
                 data = update_json_entry(data, document_id)
+                st.rerun()
             if drop:
                 data = data[data['dataset_id'] != document_id]
                 st.session_state['data'] = data
@@ -460,8 +511,8 @@ def main():
             save_json(file_name=json_file_name, data=st.session_state['data'])
         except IndexError as e:
             st.error("No data to display.")
-        except Exception as e:
-            st.error("Unexpected error occurs, check Logs.")
+        # except Exception as e:
+        #     st.error("Unexpected error occurs, check Logs.")
 
     else:
         st.warning("Upload Data to continue.")
