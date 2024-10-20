@@ -26,6 +26,14 @@ st.markdown("""
         border-radius: 8px;
         margin: auto;
     }
+    .stExpander{
+        width: 100%;
+        padding: 2rem;
+        background-color: #f9f9f9;
+        box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+        border-radius: 8px;
+        margin: auto;
+    }
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden; height:0;}
@@ -315,7 +323,7 @@ def render_form(df_row):
 
     # Indicators
     st.write("---")
-    st.write("##### Indicators")
+    st.write("### Indicators")
     render_indicators(df_row)
 
     st.write("---")
@@ -357,7 +365,7 @@ def render_indicators(df_row):
         time_interval_list = list(set(time_interval_list))
 
         # ind_name = ind['name']
-        row_1 = st.columns((1, 2, 2, 3))
+        row_1 = st.columns((1, 3, 3, 5))
         row_1[0].text_input(label="Name", value=ind['name'], key=f"indicator_name_{i}")
         row_1[1].multiselect(label="Params", options=params_list, default=ind['params'], key=f"indicator_params_{i}")
         row_1[2].multiselect(label="Time Intervals", options=time_interval_list, default=time_intervals, key=f"indicator_intervals_{i}")
