@@ -86,7 +86,7 @@ def update_json_entry(data, document_id):
         "api_id": st.session_state.get('api_id', ''),
         "quote": st.session_state.get('quote', ''),
         "market_code": st.session_state.get('market_code', ''),
-        "indicators": []
+        "indicators": st.session_state['indicators']
     }
 
     for var in ["isin", "cusip", "sedol"]:
@@ -102,62 +102,13 @@ def update_json_entry(data, document_id):
         if allocation['name'] and allocation['percentage']!=0:
             updated_entry['allocations'].append(allocation)
 
-
-    # Update indicators and alerts based on session state
-    for i in range(st.session_state['ind_count']):
-        ind_params = st.session_state.get(f"indicator_params_{i}", [])
-        indicator = {
-            "name": st.session_state.get(f"indicator_name_{i}", ''),
-            "params": [x.strip() for x in ind_params.split(',') if x.strip()],
-            "time_intervals": st.session_state.get(f"indicator_intervals_{i}", [])
-        }
-
-        if not is_valid_string(indicator['name']):
-            continue
-
-        # Adding alerts if they exist for the indicator
-        # alerts = data.iloc[row_index]['indicators'][i].get('alerts', [])
-
-
-        alerts = st.session_state[f"alerts_{i}"]
-        if alerts:
-            indicator_alerts = []
-            for j, _ in enumerate(alerts):
-                status = st.session_state.get(f"{document_id}_{i}_open_ended_{j}", False)
-                if status:
-                    alert = {
-                        "condition": st.session_state.get(f"{i}_alert_condition_{j}", ''),
-                        "trigger": st.session_state.get(f"{i}_alert_trigger_{j}", ''),
-                        "expiration": st.session_state.get(f"{i}_alert_expiration_{j}", ''),
-                        "open_ended": "True"
-                    }
-                else:
-                    expiration_date = st.session_state.get(f"{i}_alert_expiration_{j}", '')
-                    if not expiration_date:
-                        expiration_date = datetime.today()
-                    expiration_iso_format = expiration_date.strftime("%Y-%m-%dT%H:%M:%S.000Z")
-                    alert = {
-                        "condition": st.session_state.get(f"{i}_alert_condition_{j}", ''),
-                        "trigger": st.session_state.get(f"{i}_alert_trigger_{j}", ''),
-                        "expiration": expiration_iso_format,
-                    }
-                if all(str(value) and str(value).strip() for value in alert.values()):
-                    indicator_alerts.append(alert)
-                else:
-                    indicator_alerts = []
-            if len(indicator_alerts)!=0:
-                indicator['alerts'] = indicator_alerts
-        updated_entry["indicators"].append(indicator)
-        st.session_state[f"alerts_{i}"] = None
-        del st.session_state[f"alerts_{i}"]
-
     # Update the dataframe
     data.loc[row_index] = updated_entry
 
     # Save the updated data in session state to persist changes
     st.session_state['data'] = data.copy()
-    del st.session_state['ind_count']
     del st.session_state[f'{document_id}_allocations']
+    del st.session_state['indicators']
     st.success('JSON data updated successfully!')
 
     return st.session_state['data']  # Return the updated dataframe

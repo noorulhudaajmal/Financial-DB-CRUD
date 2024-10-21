@@ -6,6 +6,7 @@ import pandas as pd
 import streamlit as st
 from datetime import date, datetime, timezone
 from operations import save_json, drop_entry, add_new_entry, update_json_entry
+from utils import is_valid_string
 
 
 def data_loader():
@@ -182,9 +183,17 @@ def render_indicators(df_row):
         }
         df_row['indicators'].append(new_indicator)
 
-    indicator_count = 0
+    # initializing 'indicators' not in st.session_state:
+    st.session_state['indicators'] = []
+
     for i in range(len(df_row['indicators']) - 1, -1, -1):
         ind = df_row['indicators'][i]
+        alerts = ind.get('alerts', [])
+
+        # If no alerts are present in 'ind', initialize it with default values
+        if len(alerts)==0:
+            df_row['indicators'][i]["alerts"] = alerts
+
         row_1 = st.columns((1, 2, 3, 5,1))
         place_holder = row_1[4].empty()
         drop = place_holder.button(label="🗑️", key=f"indicator_drop_btn_{i}")
@@ -203,35 +212,22 @@ def render_indicators(df_row):
         row_1[1].text_input(label="Params", value=ind_params, key=f"indicator_params_{i}")
         row_1[2].multiselect(label="Time Intervals", options=time_interval_list, default=time_intervals, key=f"indicator_intervals_{i}")
 
-        alerts = ind.get('alerts', None)
-        # If no alerts are present in 'ind', initialize it with default values
-        if not alerts:
-            ind['alerts'] = [{
-                'condition': None,
-                'trigger': None,
-                'expiration': None
-            }]
-            alerts = ind['alerts']
-
-        if f'alerts_{i}' not in st.session_state:
-            st.session_state[f'alerts_{i}'] = alerts
-
+        ind_alerts = []
         with row_1[3].expander(label="Alerts"):
             add_alert = st.button(label="Add Alert", key=f"add_{i}_alert")
             if add_alert:
                 alerts.append({'condition': 'None', 'trigger': 'None', 'expiration': 'None'})
-                st.session_state[f'alerts_{i}'].append({'condition': 'None', 'trigger': 'None', 'expiration': 'None'})
+                # df_row['indicators'][i]["alerts"].append({'condition': 'None', 'trigger': 'None', 'expiration': 'None'})
 
             x = 0
-            # for alert in st.session_state[f'alerts_{i}']:
-            for al_ind in range(len(alerts) - 1, -1, -1):
+            for al_ind in range(len(alerts)):
                 alert = alerts[al_ind]
                 if all(str(value) and str(value).strip() for value in alert.values()):
                     al_row_1 = st.columns((3,3,3,2,1))
                     alert_place_holder = al_row_1[4].empty()
                     drop_alert = alert_place_holder.button(label="🗑️", key=f"ind_{i}_alert_drop_btn_{x}")
                     if drop_alert:
-                        del alerts[al_ind]
+                        alerts[al_ind] = None
                         alert_place_holder.empty()
                         x += 1
                         continue
@@ -251,13 +247,15 @@ def render_indicators(df_row):
                             alert_exp = alert_exp.date()
 
                         al_row_1[2].date_input(label="Expiration", value=alert_exp, key=f"{i}_alert_expiration_{x}")
-
+                    ind_alerts.append(alert)
                 x += 1
                 counter += 1
             st.session_state[f"ind_{i}_alert_count"] = x
 
-        indicator_count += 1
-    st.session_state[f"ind_count"] = indicator_count
+        ind['alerts'] = ind_alerts
+
+        if is_valid_string(ind['name']):
+            st.session_state['indicators'].insert(0, ind)
 
 
 
@@ -309,6 +307,5 @@ def display_data_editor(data):
                 open_editor_dialog(data, doc_id)
             if drop:
                 drop_entry(data, doc_id)
-            # st.write(row['indicators'])
 
     save_json(file_name="edited.json", data=st.session_state['data'])
