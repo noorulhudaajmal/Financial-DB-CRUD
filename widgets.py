@@ -224,38 +224,39 @@ def render_indicators(df_row):
             x = 0
             for al_ind in range(len(alerts)):
                 alert = alerts[al_ind]
-                if all(str(value) and str(value).strip() for value in alert.values()):
-                    al_row_1 = st.columns((3,3,3,2,1))
-                    alert_place_holder = al_row_1[4].empty()
-                    drop_alert = alert_place_holder.button(label="🗑️", key=f"ind_{i}_alert_drop_btn_{x}")
-                    if drop_alert:
-                        del alerts[al_ind]
-                        alert_place_holder.empty()
-                        x += 1
-                        continue
+                if alert:
+                    if all(str(value) and str(value).strip() for value in alert.values()):
+                        al_row_1 = st.columns((3,3,3,2,1))
+                        alert_place_holder = al_row_1[4].empty()
+                        drop_alert = alert_place_holder.button(label="🗑️", key=f"ind_{i}_alert_drop_btn_{x}")
+                        if drop_alert:
+                            alert = None
+                            alert_place_holder.empty()
+                            x += 1
+                            continue
 
-                    al_row_1[3].checkbox(label="Open", value=alert.get('open_ended', False), key=f"{doc_id}_{i}_open_ended_{x}")
-                    open_ended = st.session_state[f"{doc_id}_{i}_open_ended_{x}"]
-                    alert_condition = al_row_1[0].text_input(label="Condition", value=alert['condition'] if alert['condition'] else "", key=f"{i}_alert_condition_{x}")
-                    alert_trigger = al_row_1[1].text_input(label="Trigger", value=alert['trigger'] if alert['trigger'] else "", key=f"{i}_alert_trigger_{x}")
-                    if open_ended:
-                        alert_expiration = al_row_1[2].text_input(label="Expiration", value=alert['expiration'] if alert['expiration'] else "", key=f"{i}_alert_expiration_{x}")
-                        alert["open_ended"] = True
-                        alert["expiration"] = alert_expiration
-                    else:
-                        try:
-                            alert_exp = pd.to_datetime(alert.get('expiration', pd.to_datetime(datetime.today())))
-                        except Exception as e:
-                            alert_exp = pd.to_datetime(datetime.today())
-                        if isinstance(alert_exp, pd.Timestamp):
-                            alert_exp = alert_exp.date()
+                        al_row_1[3].checkbox(label="Open", value=alert.get('open_ended', False), key=f"{doc_id}_{i}_open_ended_{x}")
+                        open_ended = st.session_state[f"{doc_id}_{i}_open_ended_{x}"]
+                        alert_condition = al_row_1[0].text_input(label="Condition", value=alert['condition'] if alert['condition'] else "", key=f"{i}_alert_condition_{x}")
+                        alert_trigger = al_row_1[1].text_input(label="Trigger", value=alert['trigger'] if alert['trigger'] else "", key=f"{i}_alert_trigger_{x}")
+                        if open_ended:
+                            alert_expiration = al_row_1[2].text_input(label="Expiration", value=alert['expiration'] if alert['expiration'] else "", key=f"{i}_alert_expiration_{x}")
+                            alert["open_ended"] = True
+                            alert["expiration"] = alert_expiration
+                        else:
+                            try:
+                                alert_exp = pd.to_datetime(alert.get('expiration', pd.to_datetime(datetime.today())))
+                            except Exception as e:
+                                alert_exp = pd.to_datetime(datetime.today())
+                            if isinstance(alert_exp, pd.Timestamp):
+                                alert_exp = alert_exp.date()
 
-                        alert_expiration = al_row_1[2].date_input(label="Expiration", value=alert_exp, key=f"{i}_alert_expiration_{x}")
-                        alert["expiration"] = alert_expiration.strftime("%Y-%m-%dT%H:%M:%S.000Z")
-                    alert["condition"] = alert_condition
-                    alert["trigger"] = alert_trigger
+                            alert_expiration = al_row_1[2].date_input(label="Expiration", value=alert_exp, key=f"{i}_alert_expiration_{x}")
+                            alert["expiration"] = alert_expiration.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+                        alert["condition"] = alert_condition
+                        alert["trigger"] = alert_trigger
 
-                    ind_alerts.append(alert)
+                        ind_alerts.append(alert)
                 x += 1
                 counter += 1
             st.session_state[f"ind_{i}_alert_count"] = x
