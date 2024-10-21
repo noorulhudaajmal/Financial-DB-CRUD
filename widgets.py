@@ -168,6 +168,7 @@ def render_indicators(df_row):
     Function to render the indicators section
     """
 
+    counter = 0
     doc_id = df_row['dataset_id']
     time_interval_list = ['1d', '1w', '1mo']
 
@@ -182,13 +183,22 @@ def render_indicators(df_row):
         df_row['indicators'].append(new_indicator)
 
     indicator_count = 0
-    for i, ind in enumerate(df_row['indicators']):
+    for i in range(len(df_row['indicators']) - 1, -1, -1):
+        ind = df_row['indicators'][i]
+        row_1 = st.columns((1, 2, 3, 5,1))
+        place_holder = row_1[4].empty()
+        drop = place_holder.button(label="🗑️", key=f"indicator_drop_btn_{i}")
+        if drop:
+            del df_row['indicators'][i]
+            place_holder.empty()
+            continue
+
         ind_params = ', '.join(ind['params'])
         time_intervals = ind.get('time_intervals', ind.get('time_interval', []))
         time_interval_list.extend(time_intervals)
         time_interval_list = list(set(time_interval_list))
 
-        row_1 = st.columns((1, 3, 3, 5))
+
         row_1[0].text_input(label="Name", value=ind['name'], key=f"indicator_name_{i}")
         row_1[1].text_input(label="Params", value=ind_params, key=f"indicator_params_{i}")
         row_1[2].multiselect(label="Time Intervals", options=time_interval_list, default=time_intervals, key=f"indicator_intervals_{i}")
@@ -209,13 +219,24 @@ def render_indicators(df_row):
         with row_1[3].expander(label="Alerts"):
             add_alert = st.button(label="Add Alert", key=f"add_{i}_alert")
             if add_alert:
+                alerts.append({'condition': 'None', 'trigger': 'None', 'expiration': 'None'})
                 st.session_state[f'alerts_{i}'].append({'condition': 'None', 'trigger': 'None', 'expiration': 'None'})
 
             x = 0
-            for alert in st.session_state[f'alerts_{i}']:
+            # for alert in st.session_state[f'alerts_{i}']:
+            for al_ind in range(len(alerts) - 1, -1, -1):
+                alert = alerts[al_ind]
                 if all(str(value) and str(value).strip() for value in alert.values()):
-                    al_row_1 = st.columns((3,3,3,2))
-                    al_row_1[3].checkbox(label="Open Ended", value=alert.get('open_ended', False), key=f"{doc_id}_{i}_open_ended_{x}")
+                    al_row_1 = st.columns((3,3,3,2,1))
+                    alert_place_holder = al_row_1[4].empty()
+                    drop_alert = alert_place_holder.button(label="🗑️", key=f"ind_{i}_alert_drop_btn_{x}")
+                    if drop_alert:
+                        del alerts[al_ind]
+                        alert_place_holder.empty()
+                        x += 1
+                        continue
+
+                    al_row_1[3].checkbox(label="Open", value=alert.get('open_ended', False), key=f"{doc_id}_{i}_open_ended_{x}")
                     open_ended = st.session_state[f"{doc_id}_{i}_open_ended_{x}"]
                     al_row_1[0].text_input(label="Condition", value=alert['condition'] if alert['condition'] else "", key=f"{i}_alert_condition_{x}")
                     al_row_1[1].text_input(label="Trigger", value=alert['trigger'] if alert['trigger'] else "", key=f"{i}_alert_trigger_{x}")
@@ -232,6 +253,7 @@ def render_indicators(df_row):
                         al_row_1[2].date_input(label="Expiration", value=alert_exp, key=f"{i}_alert_expiration_{x}")
 
                 x += 1
+                counter += 1
             st.session_state[f"ind_{i}_alert_count"] = x
 
         indicator_count += 1
@@ -287,5 +309,6 @@ def display_data_editor(data):
                 open_editor_dialog(data, doc_id)
             if drop:
                 drop_entry(data, doc_id)
+            # st.write(row['indicators'])
 
     save_json(file_name="edited.json", data=st.session_state['data'])

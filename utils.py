@@ -16,8 +16,8 @@ def clean_alerts(indicators):
                         alert['trigger'] is None and
                         alert['expiration'] is None)
             ]
-            if not indicator['alerts']:
-                del indicator['alerts']
+            # if not indicator['alerts']:
+            #     del indicator['alerts']
     return indicators
 
 

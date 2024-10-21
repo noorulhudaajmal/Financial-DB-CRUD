@@ -99,7 +99,7 @@ def update_json_entry(data, document_id):
             "name": st.session_state.get(f"allocation_{i}_name", ''),
             "percentage": st.session_state.get(f"allocation_{i}_percentage", 0.0),
         }
-        if allocation['name'] and allocation['percentage']:
+        if allocation['name'] and allocation['percentage']!=0:
             updated_entry['allocations'].append(allocation)
 
 
@@ -147,7 +147,7 @@ def update_json_entry(data, document_id):
                     indicator_alerts = []
             if len(indicator_alerts)!=0:
                 indicator['alerts'] = indicator_alerts
-            updated_entry["indicators"].append(indicator)
+        updated_entry["indicators"].append(indicator)
         st.session_state[f"alerts_{i}"] = None
         del st.session_state[f"alerts_{i}"]
 
