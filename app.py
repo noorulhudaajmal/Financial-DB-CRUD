@@ -1,6 +1,6 @@
 import pandas as pd
 import streamlit as st
-import mongoengine
+# import mongoengine
 from css.st_ui import st_ui_css
 from dataset import DatasetDocument
 from widgets import load_json_data, display_data_editor
