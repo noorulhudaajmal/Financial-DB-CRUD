@@ -2,7 +2,7 @@ import pandas as pd
 import streamlit as st
 # import mongoengine
 from css.st_ui import st_ui_css
-from dataset import DatasetDocument
+# from dataset import DatasetDocument
 from widgets import load_json_data, display_data_editor
 
 pd.options.mode.chained_assignment = None
@@ -18,21 +18,21 @@ def initialize_session_state(data):
         st.session_state['data'] = data
 
 
-def load_data_from_mongo():
-    """
-    Loads data from MongoDB and converts it into a DataFrame.
-    """
-    try:
-        # Fetch all DatasetDocument objects
-        datasets = DatasetDocument.objects()  # This retrieves all documents from the collection
-        # Convert to JSON format
-        data_list = [data.to_mongo().to_dict() for data in datasets]  # Convert to a list of dictionaries
-        # Create DataFrame
-        df = pd.DataFrame(data_list)
-        return df
-    except Exception as e:
-        st.error(f"Error loading data from MongoDB: {e}")
-        return None
+# def load_data_from_mongo():
+#     """
+#     Loads data from MongoDB and converts it into a DataFrame.
+#     """
+#     try:
+#         # Fetch all DatasetDocument objects
+#         datasets = DatasetDocument.objects()  # This retrieves all documents from the collection
+#         # Convert to JSON format
+#         data_list = [data.to_mongo().to_dict() for data in datasets]  # Convert to a list of dictionaries
+#         # Create DataFrame
+#         df = pd.DataFrame(data_list)
+#         return df
+#     except Exception as e:
+#         st.error(f"Error loading data from MongoDB: {e}")
+#         return None
 
 
 # def main():
