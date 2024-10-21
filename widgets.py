@@ -208,9 +208,11 @@ def render_indicators(df_row):
         time_interval_list = list(set(time_interval_list))
 
 
-        row_1[0].text_input(label="Name", value=ind['name'], key=f"indicator_name_{i}")
-        row_1[1].text_input(label="Params", value=ind_params, key=f"indicator_params_{i}")
-        row_1[2].multiselect(label="Time Intervals", options=time_interval_list, default=time_intervals, key=f"indicator_intervals_{i}")
+        ind_name = row_1[0].text_input(label="Name", value=ind['name'], key=f"indicator_name_{i}")
+        ind_params = row_1[1].text_input(label="Params", value=ind_params, key=f"indicator_params_{i}")
+        ind_time_intervals = row_1[2].multiselect(label="Time Intervals", options=time_interval_list, default=time_intervals, key=f"indicator_intervals_{i}")
+        if not ind_time_intervals:
+            ind_time_intervals = time_interval_list
 
         ind_alerts = []
         with row_1[3].expander(label="Alerts"):
@@ -227,17 +229,19 @@ def render_indicators(df_row):
                     alert_place_holder = al_row_1[4].empty()
                     drop_alert = alert_place_holder.button(label="🗑️", key=f"ind_{i}_alert_drop_btn_{x}")
                     if drop_alert:
-                        alerts[al_ind] = None
+                        del alerts[al_ind]
                         alert_place_holder.empty()
                         x += 1
                         continue
 
                     al_row_1[3].checkbox(label="Open", value=alert.get('open_ended', False), key=f"{doc_id}_{i}_open_ended_{x}")
                     open_ended = st.session_state[f"{doc_id}_{i}_open_ended_{x}"]
-                    al_row_1[0].text_input(label="Condition", value=alert['condition'] if alert['condition'] else "", key=f"{i}_alert_condition_{x}")
-                    al_row_1[1].text_input(label="Trigger", value=alert['trigger'] if alert['trigger'] else "", key=f"{i}_alert_trigger_{x}")
+                    alert_condition = al_row_1[0].text_input(label="Condition", value=alert['condition'] if alert['condition'] else "", key=f"{i}_alert_condition_{x}")
+                    alert_trigger = al_row_1[1].text_input(label="Trigger", value=alert['trigger'] if alert['trigger'] else "", key=f"{i}_alert_trigger_{x}")
                     if open_ended:
-                        al_row_1[2].text_input(label="Expiration", value=alert['expiration'] if alert['expiration'] else "", key=f"{i}_alert_expiration_{x}")
+                        alert_expiration = al_row_1[2].text_input(label="Expiration", value=alert['expiration'] if alert['expiration'] else "", key=f"{i}_alert_expiration_{x}")
+                        alert["open_ended"] = True
+                        alert["expiration"] = alert_expiration
                     else:
                         try:
                             alert_exp = pd.to_datetime(alert.get('expiration', pd.to_datetime(datetime.today())))
@@ -246,7 +250,11 @@ def render_indicators(df_row):
                         if isinstance(alert_exp, pd.Timestamp):
                             alert_exp = alert_exp.date()
 
-                        al_row_1[2].date_input(label="Expiration", value=alert_exp, key=f"{i}_alert_expiration_{x}")
+                        alert_expiration = al_row_1[2].date_input(label="Expiration", value=alert_exp, key=f"{i}_alert_expiration_{x}")
+                        alert["expiration"] = alert_expiration.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+                    alert["condition"] = alert_condition
+                    alert["trigger"] = alert_trigger
+
                     ind_alerts.append(alert)
                 x += 1
                 counter += 1
@@ -254,7 +262,11 @@ def render_indicators(df_row):
 
         ind['alerts'] = ind_alerts
 
-        if is_valid_string(ind['name']):
+        if is_valid_string(ind_name):
+            ind["name"] = ind_name
+            ind["params"] = [x.strip() for x in ind_params.split(',') if x.strip()]
+            ind["time_intervals"] = ind_time_intervals
+            ind["alerts"] = alerts
             st.session_state['indicators'].insert(0, ind)
 
 

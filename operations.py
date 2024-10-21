@@ -5,6 +5,10 @@ import uuid
 import pandas as pd
 import streamlit as st
 from datetime import date, datetime, timezone
+
+from sqlalchemy.dialects.mssql.information_schema import columns
+
+from dataset import DatasetDocument
 from utils import is_valid_string, clean_alerts, convert_timestamp_to_iso
 
 
@@ -122,6 +126,7 @@ def drop_entry(data, doc_id):
 
 def save_json(file_name, data):
     if data is not None:
+        # st.write(data)
         updated_json_str = data.to_json(orient="records")
         updated_json = json.loads(updated_json_str)
 
@@ -152,3 +157,48 @@ def save_json(file_name, data):
             file_name=new_file_name,
             mime="application/json"
         )
+
+# def save_json(file_name, data):
+#     if data is not None:
+#         data = data.drop(columns=["_id"])
+#         updated_json_str = data.to_json(orient="records",  default_handler=str)
+#         updated_json = json.loads(updated_json_str)
+#
+#         # Clean the alerts
+#         for entry in updated_json:
+#             if 'start_date' in entry and isinstance(entry['start_date'], int):
+#                 entry['start_date'] = convert_timestamp_to_iso(entry['start_date'])
+#
+#             if 'indicators' in entry:
+#                 entry['indicators'] = clean_alerts(entry['indicators'])
+#
+#             for var in ["isin", "cusip", "sedol"]:
+#                 if var in entry.keys():
+#                     if not is_valid_string(entry[var]):
+#                         del entry[var]
+#
+#             # Insert or update each entry in the MongoDB database
+#             dataset_id = entry.get('dataset_id')  # Extract dataset_id from entry
+#             if dataset_id:
+#                 # Assuming DatasetDocument is your MongoDB model for saving
+#                 try:
+#                     # Upsert the document based on dataset_id
+#                     DatasetDocument.objects(dataset_id=dataset_id).update_one(set__data=entry, upsert=True)
+#                 except Exception as e:
+#                     st.error(f"Error saving entry with dataset_id {dataset_id}: {e}")
+#
+#         # Provide a success message
+#         st.success("Data successfully saved to the database.")
+#
+#         # Create an in-memory file for downloading
+#         cleaned_json_str = json.dumps(updated_json, indent=4)
+#         new_file_name = f"updated_data.json"  # Change this if needed
+#         json_file_io = io.StringIO(cleaned_json_str)
+#
+#         # Provide a download button in Streamlit
+#         st.download_button(
+#             label="Download JSON file 💾",
+#             data=json_file_io.getvalue(),
+#             file_name=new_file_name,
+#             mime="application/json"
+#         )
