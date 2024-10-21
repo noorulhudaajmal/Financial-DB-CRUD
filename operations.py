@@ -8,7 +8,7 @@ from datetime import date, datetime, timezone
 
 from sqlalchemy.dialects.mssql.information_schema import columns
 
-from dataset import DatasetDocument
+# from dataset import DatasetDocument
 from utils import is_valid_string, clean_alerts, convert_timestamp_to_iso
 
 
