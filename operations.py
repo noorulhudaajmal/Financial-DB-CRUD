@@ -97,6 +97,13 @@ def update_json_entry(data, document_id):
         if not is_valid_string(updated_entry[var]):
             del updated_entry[var]
 
+    for indicator in updated_entry['indicators']:
+        alerts = indicator.get("alerts", [])
+        indicator["alerts"] = [alert for alert in alerts if alert]
+
+        if not indicator["alerts"]:
+            del indicator["alerts"]
+
     # Update allocations using session state
     for i in range(len(st.session_state[f'{document_id}_allocations'])):
         allocation = {
